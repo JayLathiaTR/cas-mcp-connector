@@ -1,12 +1,19 @@
 using CasMcpConnectorServices.Configuration;
+using CasMcpConnectorServices.DataAccess;
 using CasMcpConnectorServices.EngagementManager;
+using CasMcpConnectorServices.GoFileRoom;
+using CasMcpConnectorServices.Security;
 using CasMcpConnectorServices.Tools;
+using AuditIntelligence.WebHost.Core.Configuration.Postgresql;
+using AuditIntelligence.WebHost.Core.Enumerators;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 namespace CasMcpConnectorServices;
 
-/// <summary>Registers the connector's own services (config, downstream clients, MCP tools).</summary>
+/// <summary>Registers the connector's own services (config, token store, GFR exchange, EM client, MCP tools).</summary>
 public static class DependencyInjectionExtensions
 {
     public static IServiceCollection AddConnectorServices(this IServiceCollection services, IConfiguration configuration)
@@ -15,12 +22,31 @@ public static class DependencyInjectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddProblemDetails();
-        services.AddHttpContextAccessor();
 
         services.Configure<DownstreamServicesOptions>(configuration.GetSection(DownstreamServicesOptions.SectionName));
+        services.Configure<TokenEncryptionOptions>(configuration.GetSection(TokenEncryptionOptions.SectionName));
 
-        // Typed EM V1 client. P0 shim (forward inbound Authorization) still applies until P1b swaps it
-        // for the CIAM→GFR exchange.
+        // Encrypted GFR-token store (Postgres) + per-request auth context.
+        NpgsqlDataSource dataSource = new NpgsqlDataSourceBuilder(
+            configuration.ObtainPostgresqlConnectionString(KnownDatabaseServerNames.PrimaryDb)).Build();
+        services.AddSingleton(dataSource);
+        services.AddDbContext<ConnectorDbContext>((serviceProvider, options) =>
+            options.UseNpgsql(serviceProvider.GetRequiredService<NpgsqlDataSource>()));
+        services.AddSingleton<IRecordEncryptor, AesGcmRecordEncryptor>();
+        services.AddScoped<IRequestAuthContext, RequestAuthContext>();
+
+        // CIAM to GFR exchange service + its dedicated (unauthenticated) HttpClient.
+        services.AddScoped<IGfrTokenService, GfrTokenService>();
+        services.AddHttpClient(GfrTokenService.HttpClientName, (serviceProvider, client) =>
+        {
+            DownstreamServicesOptions options = serviceProvider.GetRequiredService<IOptions<DownstreamServicesOptions>>().Value;
+            if (!string.IsNullOrEmpty(options.GoFileRoom))
+            {
+                client.BaseAddress = new Uri(options.GoFileRoom.TrimEnd('/') + "/");
+            }
+        });
+
+        // EM V1 typed client (attaches the exchanged GFR token per request).
         services.AddHttpClient<EngagementManagerClient>((serviceProvider, client) =>
         {
             DownstreamServicesOptions options = serviceProvider.GetRequiredService<IOptions<DownstreamServicesOptions>>().Value;

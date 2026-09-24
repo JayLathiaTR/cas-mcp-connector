@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "Docker Compose": {
+      "commandName": "DockerCompose",
+      "commandVersion": "1.0",
+      "composeLaunchServiceName": "cas_mcp_connector_services",
+      "serviceActions": {
+        "cas_mcp_connector_services": "StartDebugging",
+        "connector_storage": "StartWithoutDebugging"
+      }
+    }
+  }
+}

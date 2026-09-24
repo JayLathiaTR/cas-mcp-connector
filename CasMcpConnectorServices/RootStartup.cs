@@ -1,5 +1,6 @@
 using AuditIntelligence.WebHost.Core;
 using AuditIntelligence.WebHost.Core.Configuration.Cors;
+using CasMcpConnectorServices.Auth;
 using AuditIntelligence.WebHost.Core.Security;
 using AuditIntelligence.WebHost.Core.Types;
 using Microsoft.Net.Http.Headers;
@@ -56,5 +57,8 @@ public sealed class RootStartup
         applicationBuilder.UseCors(CorsPolicyName);
         applicationBuilder.UseAuthentication();
         applicationBuilder.UseAuthorization();
+
+        // Copies the validated CIAM identity (euid + token) onto the scoped request auth context.
+        applicationBuilder.UseMiddleware<TokenValidationMiddleware>();
     }
 }

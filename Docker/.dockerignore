@@ -1,0 +1,11 @@
+**/.vs
+**/.vscode
+**/.git
+**/.gitignore
+**/bin
+**/obj
+**/*.*proj.user
+**/docker-compose*
+**/Dockerfile*
+LICENSE
+README.md

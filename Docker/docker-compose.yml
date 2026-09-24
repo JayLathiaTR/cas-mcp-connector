@@ -1,0 +1,28 @@
+services:
+  cas_mcp_connector_services:
+    image: ${DOCKER_REGISTRY-}cas-mcp-connector-services
+    depends_on:
+      - connector_storage
+    build:
+      context: ../
+      dockerfile: CasMcpConnectorServices/Dockerfile
+      args:
+        - TR_ART_USER=XXXXXX
+        - TR_ART_TOKEN=XXXXXX
+
+  connector_storage:
+    image: postgres:16-alpine
+    container_name: cas_connector_storage
+    environment:
+      POSTGRES_DB: connector
+      POSTGRES_USER: docker
+      POSTGRES_PASSWORD: "LocalPassword#1"
+    ports:
+      - "6032:5432"
+    volumes:
+      - ../Database/create_cas_mcp_auth_token_table.sql:/docker-entrypoint-initdb.d/create_cas_mcp_auth_token_table.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docker -d connector"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

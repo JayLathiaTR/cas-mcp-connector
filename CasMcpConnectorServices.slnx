@@ -1,4 +1,14 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="README.md" />
+    <File Path="nuget.config" />
+    <File Path="ServiceSemanticVersion.json" />
+  </Folder>
   <Project Path="CasMcpConnectorServices.Tests/CasMcpConnectorServices.Tests.csproj" />
   <Project Path="CasMcpConnectorServices/CasMcpConnectorServices.csproj" />
+  <Project Path="Docker/docker-compose.dcproj">
+    <Build />
+  </Project>
 </Solution>

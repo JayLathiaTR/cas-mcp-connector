@@ -1,19 +1,19 @@
-using AuditIntelligence.WebHost.Core;
 using AuditIntelligence.WebHost.Core.Configuration.Authentication;
 using AuditIntelligence.WebHost.Core.Configuration.EnvironmentVariable;
 using AuditIntelligence.WebHost.Core.Configuration.Serilog;
 using AuditIntelligence.WebHost.Core.Enumerators;
 using AuditIntelligence.WebHost.Core.Extensions;
 using AuditIntelligence.WebHost.Core.Security;
-using AuditIntelligence.WebHost.Core.Types;
 using CasMcpConnectorServices;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-// Targeted reuse: no databases wired in P1a (empty connection-string key map). Postgres arrives in P1b.
 builder.Host
-    .RegisterConfigurationsAndSecrets(new Dictionary<KnownDatabaseServerNames, SupportedRelationalDatabases>())
+    .RegisterConfigurationsAndSecrets(new Dictionary<KnownDatabaseServerNames, SupportedRelationalDatabases>
+    {
+        { KnownDatabaseServerNames.PrimaryDb, SupportedRelationalDatabases.Postgresql },
+    })
     .ConfigureSerilog()
     .ConfigureOverrideEnvironmentVariables();
 
@@ -28,7 +28,12 @@ startup.Configure(app, app.Environment);
 string mcpEndpointPath = app.Services.GetRequiredService<IOptions<McpAuthOptions>>().Value.McpEndpointPath;
 app.MapMcp(mcpEndpointPath).RequireAuthorization(ConfigureMcpOAuthDiscoveryExtensions.DiscoveryAuthorizationPolicy);
 
-app.Run();
+await app.RunAsync();
 
 /// <summary>Exposed so the test host (WebApplicationFactory) can reference the entry point.</summary>
-public partial class Program;
+public partial class Program
+{
+    private Program()
+    {
+    }
+}

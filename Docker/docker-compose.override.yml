@@ -1,0 +1,11 @@
+services:
+  cas_mcp_connector_services:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - OVRR__ConnectionStrings__PrimaryDb__Host=connector_storage
+      - OVRR__ConnectionStrings__PrimaryDb__Port=5432
+    ports:
+      - "7020:8080"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
