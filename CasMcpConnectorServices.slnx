@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CasMcpConnectorServices.Tests/CasMcpConnectorServices.Tests.csproj" />
+  <Project Path="CasMcpConnectorServices/CasMcpConnectorServices.csproj" />
+</Solution>

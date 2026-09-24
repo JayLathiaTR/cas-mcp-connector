@@ -1,0 +1,27 @@
+## .NET build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+## IDE / user
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+
+## Rider
+.idea/
+
+## Secrets (values injected per-env from Key Vault; keep only templates)
+**/Secrets/AppSecrets*.local.json
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Logs
+[Ll]ogs/
+*.log
