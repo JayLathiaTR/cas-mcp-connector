@@ -9,14 +9,21 @@
     <NoWarn>CS1591</NoWarn>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <UserSecretsId>904b865a-59cf-4996-8ba6-0c38ec8b4961</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.3.0" />
+    <PackageReference Include="AuditIntelligence.WebHost.Core" Version="1.3.6" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="CasMcpConnectorServices.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="AppSettings*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Secrets\AppSecrets*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

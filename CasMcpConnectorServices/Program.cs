@@ -1,40 +1,32 @@
-using CasMcpConnectorServices.Configuration;
-using CasMcpConnectorServices.EngagementManager;
-using CasMcpConnectorServices.Tools;
+using AuditIntelligence.WebHost.Core;
+using AuditIntelligence.WebHost.Core.Configuration.Authentication;
+using AuditIntelligence.WebHost.Core.Configuration.EnvironmentVariable;
+using AuditIntelligence.WebHost.Core.Configuration.Serilog;
+using AuditIntelligence.WebHost.Core.Enumerators;
+using AuditIntelligence.WebHost.Core.Extensions;
+using AuditIntelligence.WebHost.Core.Security;
+using AuditIntelligence.WebHost.Core.Types;
+using CasMcpConnectorServices;
 using Microsoft.Extensions.Options;
-using Microsoft.Net.Http.Headers;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-// Needed so the EM client can read the inbound Authorization header (P0 forwarding shim).
-builder.Services.AddHttpContextAccessor();
+// Targeted reuse: no databases wired in P1a (empty connection-string key map). Postgres arrives in P1b.
+builder.Host
+    .RegisterConfigurationsAndSecrets(new Dictionary<KnownDatabaseServerNames, SupportedRelationalDatabases>())
+    .ConfigureSerilog()
+    .ConfigureOverrideEnvironmentVariables();
 
-builder.Services.Configure<DownstreamServicesOptions>(
-    builder.Configuration.GetSection(DownstreamServicesOptions.SectionName));
-
-// Typed client for the EM V1 downstream. Base URL from config; Authorization is added per-request.
-builder.Services.AddHttpClient<EngagementManagerClient>((serviceProvider, client) =>
-{
-    DownstreamServicesOptions options = serviceProvider.GetRequiredService<IOptions<DownstreamServicesOptions>>().Value;
-    if (!string.IsNullOrEmpty(options.EngagementManagerV1))
-    {
-        client.BaseAddress = new Uri(options.EngagementManagerV1);
-    }
-
-    client.DefaultRequestHeaders.TryAddWithoutValidation(HeaderNames.Accept, "application/json");
-});
-
-// MCP server over streamable HTTP. Tools are registered explicitly (additive).
-builder.Services
-    .AddMcpServer(options => options.ServerInfo = new() { Name = "cas-mcp-connector", Version = "0.1.0" })
-    .WithHttpTransport()
-    .WithTools<PingTool>()
-    .WithTools<EngagementContentsTool>();
+RootStartup startup = new(builder.Configuration, builder.Environment);
+startup.ConfigureServices(builder.Services);
 
 WebApplication app = builder.Build();
+startup.Configure(app, app.Environment);
 
-// The MCP endpoint. Authorization/OAuth discovery is layered on in the auth phase (P1).
-app.MapMcp("/mcp");
+// Require auth on the MCP endpoint, so an unauthenticated/expired call is challenged with the
+// protected-resource metadata (WWW-Authenticate) that points a client at CIAM for login.
+string mcpEndpointPath = app.Services.GetRequiredService<IOptions<McpAuthOptions>>().Value.McpEndpointPath;
+app.MapMcp(mcpEndpointPath).RequireAuthorization(ConfigureMcpOAuthDiscoveryExtensions.DiscoveryAuthorizationPolicy);
 
 app.Run();
 
