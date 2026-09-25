@@ -2,7 +2,7 @@
 
 Standalone MCP server exposing CAS Engagement Manager tools to third-party AI clients
 (e.g. **Claude**, **Copilot**) with its **own OAuth/login** — no CIAM client registration needed
-for the spike. EM-only (no GA). Reuses the CAS-MCP auth + audit middleware.
+for the spike. Reuses the CAS-MCP auth + audit middleware.
 
 ## Why a separate service
 The existing CAS-MCP (Orchestrator) is built for CoCounsel and accepts a pre-minted CIAM token as a

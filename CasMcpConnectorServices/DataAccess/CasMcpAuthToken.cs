@@ -4,8 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace CasMcpConnectorServices.DataAccess;
 
 /// <summary>
-/// Persisted GFR session token per CIAM user (euid). The token is stored encrypted (AES-256-GCM).
-/// EM-only — no GA columns.
+/// Persisted GFR session token per CIAM user (euid), stored encrypted (AES-256-GCM).
 /// </summary>
 [Table("cas_mcp_auth_token")]
 public class CasMcpAuthToken

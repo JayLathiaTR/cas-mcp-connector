@@ -3,7 +3,7 @@ namespace CasMcpConnectorServices.Configuration;
 /// <summary>
 /// Base URLs for the downstream services this connector calls. Bound to the single
 /// <c>DownstreamServices</c> configuration section — each service maps directly to its base URL,
-/// so adding a new one is one extra line with no repeated wrappers. EM-only (no GA).
+/// so adding a new one is one extra line with no repeated wrappers.
 /// </summary>
 public sealed class DownstreamServicesOptions
 {

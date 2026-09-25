@@ -1,7 +1,7 @@
 # Architecture
 
 **CasMcpConnector** — a standalone MCP server that exposes CAS **Engagement Manager** tools to
-third-party AI clients (Claude, Copilot, any MCP-compliant client). EM (GoFileRoom) only — **no GA**.
+third-party AI clients (Claude, Copilot, any MCP-compliant client).
 
 > "Connector" here always means **CasMcpConnector** (this service), not a Claude/host "connector".
 
@@ -116,9 +116,6 @@ sequenceDiagram
 - **EM client + tool** (`EngagementManager/`, `Tools/`) — `em_list_engagement_workpapers` → EM V1
   `/Binder/v4/{id}/Items` with the resolved GFR token.
 
-## Intentionally excluded
-All Guided Assurance (GA/UDS): no GA pipeline, HTTP client, tools, refresh, or token columns.
-
 ## Not-for-production (spike shortcuts)
 - Login is a **mock** (collects a CIAM token) — the real project uses a registered CIAM native client.
-- In-memory auth-code store; single master key (no Key Vault rotation wired); no rate limiting.
+- OAuth authorization **codes** are held in-memory (5-min TTL, lost on restart); GFR **tokens** are persisted encrypted in Postgres. Single master key (no Key Vault rotation wired); no rate limiting.

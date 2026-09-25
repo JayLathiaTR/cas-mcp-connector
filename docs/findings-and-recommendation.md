@@ -1,8 +1,7 @@
 # Spike findings & Go/No-Go recommendation
 
 **Goal:** prove a third-party AI client (Claude Desktop, Copilot, …) can consume CAS Engagement
-Manager tools through a standalone MCP connector that performs **its own login** — separate from
-CoCounsel's CAS-MCP, EM-only, no GA.
+Manager tools through a standalone MCP connector that performs **its own login** — separate from CoCounsel's CAS-MCP.
 
 ## Outcome: PROVEN end-to-end
 A third-party client connects to the connector, is driven through a login + consent flow, and calls
@@ -39,8 +38,8 @@ scoped CIAM registration request, not a code problem.
 
 ## Risks / gaps (tracked, not blockers for the spike)
 - Mock login is not real authentication (spike only).
-- In-memory auth-code store; single master key; no rate limiting; container app-path needs the master
-  key injected. GA intentionally excluded throughout.
+- OAuth authorization codes are in-memory (short-lived, lost on restart); GFR tokens are persisted
+  encrypted in Postgres. Single master key; no rate limiting; container app-path needs the master key injected.
 
 ## Recommendation: GO
 The concept is validated and the architecture is sound and largely reusable. Recommend proceeding to a
