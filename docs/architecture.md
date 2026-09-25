@@ -5,26 +5,33 @@ third-party AI clients (Claude, Copilot, any MCP-compliant client). EM (GoFileRo
 
 > "Connector" here always means **CasMcpConnector** (this service), not a Claude/host "connector".
 
-## Container view (C4)
+## Container view
 ```mermaid
-C4Container
-    title CasMcpConnector - Container view
-    Person(user, "Auditor", "Uses a third-party AI client")
-    System_Ext(client, "MCP client", "Claude Desktop / Copilot (via mcp-remote)")
-    System_Boundary(b, "CasMcpConnector") {
-        Container(app, "MCP + OAuth service", ".NET 10 / ASP.NET", "Serves /mcp; hosts login/consent; CIAM auth; CIAM->GFR exchange; EM tool")
-        ContainerDb(db, "Token store", "PostgreSQL", "Encrypted GFR tokens (cas_mcp_auth_token)")
-    }
-    System_Ext(ciam, "CIAM", "auth-nonprod (issues/validates tokens)")
-    System_Ext(gfr, "GoFileRoom", "CIAM->GFR token exchange")
-    System_Ext(em, "Engagement Manager V1", "Engagement data")
+flowchart TB
+    user["Auditor<br/><i>Person</i>"]
+    client["MCP client<br/><i>Claude Desktop / Copilot</i>"]
 
-    Rel(user, client, "Uses")
-    Rel(client, app, "MCP over HTTP + OAuth login", "HTTPS")
-    Rel(app, ciam, "Validate CIAM JWT")
-    Rel(app, gfr, "Exchange CIAM->GFR")
-    Rel(app, em, "Read engagement contents")
-    Rel(app, db, "Store / read encrypted GFR token")
+    subgraph sys["CasMcpConnector"]
+        app["MCP + OAuth service<br/><i>.NET 10 / ASP.NET</i>"]
+        db[("Token store<br/><i>PostgreSQL · encrypted GFR tokens</i>")]
+    end
+
+    ciam["CIAM<br/><i>auth-nonprod</i>"]
+    gfr["GoFileRoom"]
+    em["Engagement Manager V1"]
+
+    user --> client
+    client -->|"MCP + OAuth (HTTPS)"| app
+    app -->|"validate CIAM JWT"| ciam
+    app -->|"CIAM to GFR exchange"| gfr
+    app -->|"read engagement contents"| em
+    app -->|"store / read (encrypted)"| db
+
+    classDef internal fill:#1f6feb,stroke:#79c0ff,stroke-width:1px,color:#ffffff;
+    classDef external fill:#57606a,stroke:#8b949e,stroke-width:1px,color:#ffffff;
+    class app,db internal;
+    class user,client,ciam,gfr,em external;
+    style sys fill:transparent,stroke:#8b949e,stroke-dasharray:4 3,color:#8b949e;
 ```
 
 ## Component overview
@@ -56,6 +63,14 @@ flowchart LR
     GFRS --> GFR
     GFRS --> ENC --> DB
     EMC --> EM
+
+    classDef internal fill:#1f6feb,stroke:#79c0ff,color:#ffffff;
+    classDef external fill:#57606a,stroke:#8b949e,color:#ffffff;
+    classDef store fill:#238636,stroke:#56d364,color:#ffffff;
+    class MCP,OAUTH,AUTH,MW,GFRS,ENC,EMC internal;
+    class MC,CIAM,GFR,EM external;
+    class DB store;
+    style CONN fill:transparent,stroke:#8b949e,stroke-dasharray:4 3,color:#8b949e;
 ```
 
 ## Request flow (discovery → login → tool call)
