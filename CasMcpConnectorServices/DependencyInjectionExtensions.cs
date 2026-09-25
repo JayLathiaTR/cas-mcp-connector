@@ -29,15 +29,19 @@ public static class DependencyInjectionExtensions
         // discovery's authorization_servers at THIS connector instead of CIAM.
         services.Configure<ConnectorOAuthOptions>(configuration.GetSection(ConnectorOAuthOptions.SectionName));
         services.AddSingleton<OAuthCodeStore>();
-        string? connectorIssuer = configuration[$"{ConnectorOAuthOptions.SectionName}:IssuerUrl"];
-        if (!string.IsNullOrWhiteSpace(connectorIssuer))
+        // Advertise THIS connector as the authorization server, derived from the incoming request so it
+        // works on any host/port (5080 F5, 7020 docker, ...) without hardcoding.
+        services.PostConfigure<McpAuthenticationOptions>(McpAuthenticationDefaults.AuthenticationScheme, mcpOptions =>
         {
-            services.PostConfigure<McpAuthenticationOptions>(McpAuthenticationDefaults.AuthenticationScheme, mcpOptions =>
+            mcpOptions.Events.OnResourceMetadataRequest = context =>
             {
-                mcpOptions.ResourceMetadata!.AuthorizationServers.Clear();
-                mcpOptions.ResourceMetadata.AuthorizationServers.Add(connectorIssuer.TrimEnd('/'));
-            });
-        }
+                HttpRequest request = context.HttpContext.Request;
+                string baseUrl = $"{request.Scheme}://{request.Host}";
+                context.ResourceMetadata!.AuthorizationServers.Clear();
+                context.ResourceMetadata.AuthorizationServers.Add(baseUrl);
+                return Task.CompletedTask;
+            };
+        });
 
         services.Configure<DownstreamServicesOptions>(configuration.GetSection(DownstreamServicesOptions.SectionName));
         services.Configure<TokenEncryptionOptions>(configuration.GetSection(TokenEncryptionOptions.SectionName));
