@@ -1,3 +1,4 @@
+using CasMcpConnectorServices.Auth.OAuth;
 using CasMcpConnectorServices.Configuration;
 using CasMcpConnectorServices.DataAccess;
 using CasMcpConnectorServices.EngagementManager;
@@ -7,6 +8,7 @@ using CasMcpConnectorServices.Tools;
 using AuditIntelligence.WebHost.Core.Configuration.Postgresql;
 using AuditIntelligence.WebHost.Core.Enumerators;
 using Microsoft.EntityFrameworkCore;
+using ModelContextProtocol.AspNetCore.Authentication;
 using Npgsql;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
@@ -22,6 +24,20 @@ public static class DependencyInjectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddProblemDetails();
+
+        // Mock OAuth authorization server (POC): our own login page + code store, and repoint the MCP
+        // discovery's authorization_servers at THIS connector instead of CIAM.
+        services.Configure<ConnectorOAuthOptions>(configuration.GetSection(ConnectorOAuthOptions.SectionName));
+        services.AddSingleton<OAuthCodeStore>();
+        string? connectorIssuer = configuration[$"{ConnectorOAuthOptions.SectionName}:IssuerUrl"];
+        if (!string.IsNullOrWhiteSpace(connectorIssuer))
+        {
+            services.PostConfigure<McpAuthenticationOptions>(McpAuthenticationDefaults.AuthenticationScheme, mcpOptions =>
+            {
+                mcpOptions.ResourceMetadata!.AuthorizationServers.Clear();
+                mcpOptions.ResourceMetadata.AuthorizationServers.Add(connectorIssuer.TrimEnd('/'));
+            });
+        }
 
         services.Configure<DownstreamServicesOptions>(configuration.GetSection(DownstreamServicesOptions.SectionName));
         services.Configure<TokenEncryptionOptions>(configuration.GetSection(TokenEncryptionOptions.SectionName));
