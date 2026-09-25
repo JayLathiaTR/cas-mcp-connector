@@ -18,3 +18,15 @@
 11. `TokenValidationMiddleware` puts euid + token on `IRequestAuthContext`.
 12. On an EM tool call, `EngagementManagerClient` gets a GFR token from `GfrTokenService`
     (stored encrypted, or freshly exchanged CIAM→GFR), sends it to EM V1, and refreshes once on a 401.
+
+## Authorization code vs. access token
+The flow deliberately uses two short-vs-long-lived artifacts:
+
+- **Authorization code** — a one-time "claim ticket" issued on **Accept** (step 7). It carries no
+  access on its own; it is bound to the CIAM token, the PKCE challenge and the redirect, expires in
+  ~5 min, and is single-use. It travels back through the browser redirect, so it is deliberately
+  useless if intercepted — the client must still prove possession via PKCE at `/token` (step 8).
+  Stored **in-memory** (`OAuthCodeStore`); losing it on restart just means "log in again".
+- **Access token** — returned at `/token` (here, the CIAM token). This is what calls `/mcp`, and its
+  downstream **GFR token** is persisted **encrypted in Postgres** (`cas_mcp_auth_token`).
+
