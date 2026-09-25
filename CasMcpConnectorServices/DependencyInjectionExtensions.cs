@@ -8,14 +8,14 @@ using CasMcpConnectorServices.Tools;
 using AuditIntelligence.WebHost.Core.Configuration.Postgresql;
 using AuditIntelligence.WebHost.Core.Enumerators;
 using Microsoft.EntityFrameworkCore;
-using ModelContextProtocol.AspNetCore.Authentication;
-using Npgsql;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using ModelContextProtocol.AspNetCore.Authentication;
+using Npgsql;
 
 namespace CasMcpConnectorServices;
 
-/// <summary>Registers the connector's own services (config, token store, GFR exchange, EM client, MCP tools).</summary>
+/// <summary>Registers the connector's own services, grouped by concern for readability.</summary>
 public static class DependencyInjectionExtensions
 {
     public static IServiceCollection AddConnectorServices(this IServiceCollection services, IConfiguration configuration)
@@ -25,10 +25,21 @@ public static class DependencyInjectionExtensions
 
         services.AddProblemDetails();
 
-        // Mock OAuth authorization server (POC): our own login page + code store, and repoint the MCP
-        // discovery's authorization_servers at THIS connector instead of CIAM.
+        services.AddConnectorAuth(configuration);
+        services.AddTokenStore(configuration);
+        services.AddDownstreamClients(configuration);
+        services.AddConnectorMcp();
+
+        return services;
+    }
+
+    /// <summary>Mock OAuth authorization server (login/consent) + per-request auth context.</summary>
+    private static IServiceCollection AddConnectorAuth(this IServiceCollection services, IConfiguration configuration)
+    {
         services.Configure<ConnectorOAuthOptions>(configuration.GetSection(ConnectorOAuthOptions.SectionName));
         services.AddSingleton<OAuthCodeStore>();
+        services.AddScoped<IRequestAuthContext, RequestAuthContext>();
+
         // Advertise THIS connector as the authorization server, derived from the incoming request so it
         // works on any host/port (5080 F5, 7020 docker, ...) without hardcoding.
         services.PostConfigure<McpAuthenticationOptions>(McpAuthenticationDefaults.AuthenticationScheme, mcpOptions =>
@@ -43,20 +54,30 @@ public static class DependencyInjectionExtensions
             };
         });
 
-        services.Configure<DownstreamServicesOptions>(configuration.GetSection(DownstreamServicesOptions.SectionName));
-        services.Configure<TokenEncryptionOptions>(configuration.GetSection(TokenEncryptionOptions.SectionName));
+        return services;
+    }
 
-        // Encrypted GFR-token store (Postgres) + per-request auth context.
+    /// <summary>Encrypted GFR-token store (Postgres) + AES-256-GCM record-DEK envelope encryption.</summary>
+    private static IServiceCollection AddTokenStore(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<TokenEncryptionOptions>(configuration.GetSection(TokenEncryptionOptions.SectionName));
+        services.AddSingleton<IRecordEncryptor, AesGcmRecordEncryptor>();
+
         NpgsqlDataSource dataSource = new NpgsqlDataSourceBuilder(
             configuration.ObtainPostgresqlConnectionString(KnownDatabaseServerNames.PrimaryDb)).Build();
         services.AddSingleton(dataSource);
         services.AddDbContext<ConnectorDbContext>((serviceProvider, options) =>
             options.UseNpgsql(serviceProvider.GetRequiredService<NpgsqlDataSource>()));
-        services.AddSingleton<IRecordEncryptor, AesGcmRecordEncryptor>();
-        services.AddScoped<IRequestAuthContext, RequestAuthContext>();
 
-        // CIAM to GFR exchange service + its dedicated (unauthenticated) HttpClient.
+        return services;
+    }
+
+    /// <summary>Downstream HTTP clients: GFR (CIAM to GFR exchange) and Engagement Manager V1.</summary>
+    private static IServiceCollection AddDownstreamClients(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<DownstreamServicesOptions>(configuration.GetSection(DownstreamServicesOptions.SectionName));
         services.AddScoped<IGfrTokenService, GfrTokenService>();
+
         services.AddHttpClient(GfrTokenService.HttpClientName, (serviceProvider, client) =>
         {
             DownstreamServicesOptions options = serviceProvider.GetRequiredService<IOptions<DownstreamServicesOptions>>().Value;
@@ -66,7 +87,6 @@ public static class DependencyInjectionExtensions
             }
         });
 
-        // EM V1 typed client (attaches the exchanged GFR token per request).
         services.AddHttpClient<EngagementManagerClient>((serviceProvider, client) =>
         {
             DownstreamServicesOptions options = serviceProvider.GetRequiredService<IOptions<DownstreamServicesOptions>>().Value;
@@ -78,6 +98,12 @@ public static class DependencyInjectionExtensions
             client.DefaultRequestHeaders.TryAddWithoutValidation(HeaderNames.Accept, "application/json");
         });
 
+        return services;
+    }
+
+    /// <summary>MCP server (stateless HTTP transport) + the connector's tools.</summary>
+    private static IServiceCollection AddConnectorMcp(this IServiceCollection services)
+    {
         services
             .AddMcpServer(options => options.ServerInfo = new() { Name = "cas-mcp-connector", Version = "0.1.0" })
             .WithHttpTransport(options => options.Stateless = true)

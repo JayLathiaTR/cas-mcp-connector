@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using CasMcpConnectorServices.Configuration;
+using CasMcpConnectorServices.Security;
 using Microsoft.Extensions.Options;
 
 namespace CasMcpConnectorServices.Auth.OAuth;
@@ -120,8 +120,9 @@ public static class ConnectorOAuthEndpoints
         return Results.Content(ConsentPageHtml(ciamToken, redirectUri, state, codeChallenge), "text/html");
     }
 
-    private static IResult Consent(HttpContext context, OAuthCodeStore store)
+    private static IResult Consent(HttpContext context, OAuthCodeStore store, ILoggerFactory loggerFactory)
     {
+        ILogger logger = loggerFactory.CreateLogger("CasMcpConnectorServices.Auth.OAuth");
         IFormCollection form = context.Request.Form;
         string action = form["action"].ToString();
         string redirectUri = form["redirect_uri"].ToString();
@@ -136,6 +137,7 @@ public static class ConnectorOAuthEndpoints
 
         if (!string.Equals(action, "accept", StringComparison.Ordinal))
         {
+            logger.LogInformation("Consent declined; redirecting with access_denied.");
             string denied = redirectUri + separator + "error=access_denied";
             if (!string.IsNullOrEmpty(state))
             {
@@ -154,6 +156,7 @@ public static class ConnectorOAuthEndpoints
 
         string code = Base64Url(RandomNumberGenerator.GetBytes(32));
         store.Save(code, new OAuthCodeStore.CodeEntry(ciamToken, codeChallenge, redirectUri, DateTimeOffset.UtcNow.AddMinutes(5)));
+        logger.LogInformation("Consent accepted; authorization code issued.");
 
         string location = redirectUri + separator + "code=" + Uri.EscapeDataString(code);
         if (!string.IsNullOrEmpty(state))
@@ -164,8 +167,9 @@ public static class ConnectorOAuthEndpoints
         return Results.Redirect(location);
     }
 
-    private static IResult Token(HttpContext context, OAuthCodeStore store)
+    private static IResult Token(HttpContext context, OAuthCodeStore store, ILoggerFactory loggerFactory)
     {
+        ILogger logger = loggerFactory.CreateLogger("CasMcpConnectorServices.Auth.OAuth");
         IFormCollection form = context.Request.Form;
         string code = form["code"].ToString();
         string redirectUri = form["redirect_uri"].ToString();
@@ -186,12 +190,12 @@ public static class ConnectorOAuthEndpoints
             return Results.BadRequest(new { error = "invalid_grant", error_description = "redirect_uri mismatch" });
         }
 
-        string computedChallenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(codeVerifier)));
-        if (!string.Equals(computedChallenge, entry.CodeChallenge, StringComparison.Ordinal))
+        if (!Pkce.Verify(codeVerifier, entry.CodeChallenge))
         {
             return Results.BadRequest(new { error = "invalid_grant", error_description = "PKCE verification failed" });
         }
 
+        logger.LogInformation("Access token issued via authorization_code grant.");
         return Results.Json(new Dictionary<string, object?>
         {
             ["access_token"] = entry.CiamToken,
@@ -217,7 +221,7 @@ public static class ConnectorOAuthEndpoints
     <p class="subtitle">Cloud Audit Suite MCP Connector. Paste a valid CIAM token to continue.</p>
     <form method="post" action="{{LoginPath}}">
       <label for="ciam_token">CIAM access token</label>
-      <textarea id="ciam_token" name="ciam_token" placeholder="eyJhbGciOi..." required autofocus></textarea>
+      <input type="password" id="ciam_token" name="ciam_token" placeholder="Paste your CIAM token" required autofocus />
       <input type="hidden" name="redirect_uri" value="{{Enc(redirectUri)}}" />
       <input type="hidden" name="state" value="{{Enc(state)}}" />
       <input type="hidden" name="code_challenge" value="{{Enc(codeChallenge)}}" />
@@ -285,9 +289,8 @@ public static class ConnectorOAuthEndpoints
     .title { font-size:24px; font-weight:700; margin:0 0 8px; }
     .subtitle { color:var(--muted); font-size:14px; margin:0 0 22px; line-height:1.5; }
     label { display:block; font-size:13px; font-weight:600; margin:12px 0 6px; }
-    textarea { width:100%; min-height:120px; padding:10px 12px; border:1px solid var(--line); border-radius:6px;
-               font-family:ui-monospace,Consolas,monospace; font-size:12px; resize:vertical; }
-    textarea:focus { outline:none; border-color:var(--tr-orange); box-shadow:0 0 0 3px rgba(255,128,0,.15); }
+    input[type=password] { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
+    input[type=password]:focus { outline:none; border-color:var(--tr-orange); box-shadow:0 0 0 3px rgba(255,128,0,.15); }
     .btn { display:inline-flex; align-items:center; justify-content:center; padding:11px 18px; border-radius:6px;
            font-size:15px; font-weight:600; cursor:pointer; border:1px solid transparent; }
     .btn-primary { background:var(--tr-orange-dark); color:#fff; width:100%; margin-top:20px; }
